@@ -1,0 +1,21 @@
+name = "wettelijke-analyse"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets (zet met `npx wrangler secret put <NAAM>`):
+#   ANTHROPIC_API_KEY   sleutel van de AI leverancier
+#   TOEGANGSCODE        gedeelde code die de frontend meestuurt
+#
+# Gewone variabelen:
+[vars]
+# De GitHub Pages URL waarvandaan de frontend mag aanroepen, zonder slash aan het eind.
+ALLOWED_ORIGIN = "https://GEBRUIKERSNAAM.github.io"
+# Maximaal aantal vragen per dag over alle gebruikers samen (kostenplafond).
+MAX_PER_DAG = "200"
+
+# Optioneel dagplafond via KV. Maak aan met `npx wrangler kv namespace create TELLER`
+# en vul het id in. Zonder deze binding werkt de Worker ook, maar zonder plafond.
+# [[kv_namespaces]]
+# binding = "TELLER"
+# id = "VUL_IN"
