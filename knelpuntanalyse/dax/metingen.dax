@@ -1,0 +1,75 @@
+// DAX metingen voor de meetlog (versie v1)
+// Tabellen: Mail, Doorlooptijd, MailPerZaak, KIM, UrenPerDag
+// K10 komt uit de handmatige tijdsmeting en staat niet in DAX.
+
+// ---- op tabel Doorlooptijd ----
+
+K1 Inkomende mails = COUNTROWS('Doorlooptijd')
+
+K6 Mediane doorlooptijd (uren) = MEDIAN('Doorlooptijd'[DoorlooptijdUren])
+
+K7 Binnen 120 uur =
+VAR Beantwoord =
+    CALCULATE(COUNTROWS('Doorlooptijd'), 'Doorlooptijd'[Status] = "Beantwoord")
+VAR OpTijd =
+    CALCULATE(
+        COUNTROWS('Doorlooptijd'),
+        'Doorlooptijd'[Status] = "Beantwoord",
+        'Doorlooptijd'[DoorlooptijdUren] <= 120
+    )
+RETURN
+    DIVIDE(OpTijd, Beantwoord)
+
+K8 Open ouder dan 7 dagen =
+CALCULATE(
+    COUNTROWS('Doorlooptijd'),
+    'Doorlooptijd'[Status] = "Open",
+    'Doorlooptijd'[LeeftijdDagen] > 7
+)
+
+// ---- op tabel Mail ----
+
+K2 Aandeel standaardmail =
+DIVIDE(
+    CALCULATE(COUNTROWS(Mail), Mail[Soort] = "Standaardmail", Mail[Richting] = "Inkomend"),
+    CALCULATE(COUNTROWS(Mail), Mail[Richting] = "Inkomend")
+)
+
+K3 Hoogste herhaalfactor =
+MAXX(
+    VALUES(Mail[Categorie]),
+    DIVIDE(
+        CALCULATE(COUNTROWS(Mail)),
+        CALCULATE(DISTINCTCOUNT(Mail[OnderwerpSchoon]))
+    )
+)
+
+K4 Aandeel statusvragen =
+DIVIDE(
+    CALCULATE(
+        COUNTROWS(Mail),
+        Mail[Categorie] = "Statusvraag",
+        Mail[Richting] = "Inkomend",
+        Mail[Intern] = FALSE()
+    ),
+    CALCULATE(COUNTROWS(Mail), Mail[Richting] = "Inkomend", Mail[Intern] = FALSE())
+)
+
+K12 Aandeel onbekend =
+DIVIDE(CALCULATE(COUNTROWS(Mail), Mail[Categorie] = "Onbekend"), COUNTROWS(Mail))
+
+// ---- op tabel MailPerZaak ----
+
+K5 Mediane langste stilte (dagen) = MEDIAN(MailPerZaak[LangsteStilteDagen])
+
+// ---- op tabel KIM ----
+
+K9 Zaken over termijn =
+DIVIDE(
+    CALCULATE(COUNTROWS(KIM), KIM[OverTermijn] = TRUE()),
+    CALCULATE(COUNTROWS(KIM), KIM[OpenOpPeildatum] = TRUE())
+)
+
+// ---- op tabel UrenPerDag ----
+
+K11 Uren met mail per dag = MEDIAN(UrenPerDag[UrenMetMail])

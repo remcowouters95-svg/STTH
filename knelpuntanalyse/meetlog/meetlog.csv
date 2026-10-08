@@ -1,0 +1,13 @@
+code;indicator;versie;periode_nulmeting;waarde_nulmeting;min_maand_nulmeting;max_maand_nulmeting;meting_2;meting_3;doelwaarde
+K1;Inkomende mails per maand;v1;2026-04-01 t/m 2026-09-30;;;;;;
+K2;Aandeel standaardmail (%);v1;2026-04-01 t/m 2026-09-30;;;;;;
+K3;Hoogste herhaalfactor per categorie;v1;2026-04-01 t/m 2026-09-30;;;;;;
+K4;Aandeel statusvragen (%);v1;2026-04-01 t/m 2026-09-30;;;;;;
+K5;Mediane langste stilte per zaak (dagen);v1;2026-04-01 t/m 2026-09-30;;;;;;
+K6;Mediane doorlooptijd (uren);v1;2026-04-01 t/m 2026-09-30;;;;;;
+K7;Beantwoord binnen 120 uur (%);v1;2026-04-01 t/m 2026-09-30;;;;;;
+K8;Open mails ouder dan 7 dagen (einde periode);v1;2026-04-01 t/m 2026-09-30;;;;;;
+K9;Zaken over streeftermijn (%);v1;2026-04-01 t/m 2026-09-30;;;;;;
+K10;Minuten dossierhandelingen per week;v1;tijdsmeting 2 weken;;;;;;
+K11;Uren per werkdag met uitgaande mail (mediaan);v1;2026-04-01 t/m 2026-09-30;;;;;;
+K12;Aandeel mail met categorie Onbekend (%);v1;2026-04-01 t/m 2026-09-30;;;;;;
