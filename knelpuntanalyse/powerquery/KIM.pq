@@ -9,7 +9,8 @@ let
     // -----------------------
 
     Bron       = Excel.Workbook(File.Contents(Pad), true),
-    Blad       = Bron{0}[Data],
+    // eerste werkblad; Bron{0} kan ook een tabel of benoemd bereik zijn
+    Blad       = Table.SelectRows(Bron, each [Kind] = "Sheet"){0}[Data],
     Kolommen   = Table.SelectColumns(
                      Blad,
                      {"Zaaknummer", "Zaaktype", "Status",
@@ -18,13 +19,18 @@ let
     Typen      = Table.TransformColumnTypes(
                      Kolommen,
                      {{"Startdatum", type date}, {"Einddatum", type date}}),
+    // zelfde schrijfwijze als Mail[Zaaknummer]; ook als Excel een getal of leeg veld levert
     Genormd    = Table.TransformColumns(
                      Typen,
-                     {{"Zaaknummer", each Text.Upper(Text.Trim(_)), type text}}),
+                     {{"Zaaknummer", each if _ = null then null else Text.Upper(Text.Trim(Text.From(_))), type text},
+                      {"Zaaktype", each if _ = null then null else Text.Trim(Text.From(_)), type text}}),
 
+    // open op de peildatum: gestart op of voor de peildatum en toen nog niet afgesloten
     MetOpen    = Table.AddColumn(
                      Genormd, "OpenOpPeildatum",
-                     each [Einddatum] = null or [Einddatum] > Peildatum,
+                     each [Startdatum] <> null
+                          and [Startdatum] <= Peildatum
+                          and ([Einddatum] = null or [Einddatum] > Peildatum),
                      type logical),
     MetLeeftijd = Table.AddColumn(
                      MetOpen, "LeeftijdDagen",

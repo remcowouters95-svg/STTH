@@ -8,20 +8,25 @@ let
     Startdatum   = #date(2026, 4, 1),
     Einddatum    = #date(2026, 9, 30),
     EigenDomein  = "anvs.nl",
+    // bovenste map (kleine letters) die als uitgaand telt, en mappen die niet meetellen
+    MappenUit    = {"verzonden items", "sent items"},
+    MappenNiet   = {"concepten", "drafts", "postvak uit", "outbox",
+                    "ongewenste e-mail", "junk e-mail", "junk email",
+                    "synchronisatieproblemen", "sync issues"},
     // -----------------------
 
     Bron         = Exchange.Contents(Adres),
     MailTabel    = Bron{[Name = "Mail"]}[Data],
 
-    // vast meetvenster, nooit "tot vandaag"
-    OpDatum      = Table.SelectRows(
-                        MailTabel,
-                        each [DateTimeReceived] >= DateTime.From(Startdatum)
-                         and [DateTimeReceived] <  DateTime.From(Date.AddDays(Einddatum, 1))
-                   ),
+    // sommige versies van de connector zetten ConversationTopic en DateTimeSent in de kolom
+    // Attributes in plaats van als eigen kolom; haal ze daar dan uit
+    UitAttribuut = List.Difference({"ConversationTopic", "DateTimeSent"}, Table.ColumnNames(MailTabel)),
+    MetAttribuut = if Table.HasColumns(MailTabel, "Attributes") and not List.IsEmpty(UitAttribuut)
+                   then Table.ExpandRecordColumn(MailTabel, "Attributes", UitAttribuut, UitAttribuut)
+                   else MailTabel,
 
     Kolommen     = Table.SelectColumns(
-                        OpDatum,
+                        MetAttribuut,
                         {
                             "Id", "Folder Path", "Subject", "Body",
                             "DateTimeReceived", "DateTimeSent",
@@ -32,8 +37,40 @@ let
                         MissingField.Ignore
                    ),
 
+    // tijden als lokale datetime, ook als de connector datetimezone levert
+    NaarLokaal   = (x) => if x is datetimezone
+                          then DateTimeZone.RemoveZone(DateTimeZone.ToLocal(x))
+                          else x,
+    Tijden       = Table.TransformColumns(
+                        Kolommen,
+                        {
+                            {"DateTimeReceived", NaarLokaal, type datetime},
+                            {"DateTimeSent", NaarLokaal, type datetime}
+                        },
+                        null,
+                        MissingField.Ignore
+                   ),
+
+    // vast meetvenster, nooit "tot vandaag"
+    OpDatum      = Table.SelectRows(
+                        Tijden,
+                        each [DateTimeReceived] >= DateTime.From(Startdatum)
+                         and [DateTimeReceived] <  DateTime.From(Date.AddDays(Einddatum, 1))
+                   ),
+
+    // bovenste map van het pad, bijvoorbeeld "\Verzonden items\Project\" wordt "verzonden items"
+    MetMap       = Table.AddColumn(
+                        OpDatum, "Map",
+                        each Text.Lower(Text.Trim(
+                            List.First(
+                                List.Select(Text.Split([Folder Path] ?? "", "\"), (s) => s <> ""),
+                                ""))),
+                        type text
+                   ),
+    ZonderNiet   = Table.SelectRows(MetMap, each not List.Contains(MappenNiet, [Map])),
+
     AfzenderUit  = Table.ExpandRecordColumn(
-                        Kolommen, "Sender",
+                        ZonderNiet, "Sender",
                         {"Name", "Address"},
                         {"AfzenderNaam", "AfzenderAdres"}
                    ),
@@ -53,9 +90,7 @@ let
 
     MetRichting  = Table.AddColumn(
                         MetIntern, "Richting",
-                        each if Text.Contains(Text.Lower([Folder Path] ?? ""), "verzonden")
-                             or Text.Contains(Text.Lower([Folder Path] ?? ""), "sent")
-                             then "Uitgaand" else "Inkomend",
+                        each if List.Contains(MappenUit, [Map]) then "Uitgaand" else "Inkomend",
                         type text
                    ),
 
@@ -78,9 +113,14 @@ let
                         SchoonOnderw, "Datum",
                         each Date.From([DateTimeReceived]), type date
                    ),
+    // ISO weeknummer zoals in Nederland gebruikelijk (week van de donderdag)
     MetWeek      = Table.AddColumn(
                         MetDatum, "Weeknummer",
-                        each Date.WeekOfYear([Datum]), Int64.Type
+                        each Number.IntegerDivide(
+                            Date.DayOfYear(
+                                Date.AddDays([Datum], 3 - Date.DayOfWeek([Datum], Day.Monday))
+                            ) - 1, 7) + 1,
+                        Int64.Type
                    ),
     MetUur       = Table.AddColumn(
                         MetWeek, "Uur",
@@ -96,19 +136,23 @@ let
 
     Opgeschoond  = Table.RemoveColumns(MetBijlagen, {"Attachments"}, MissingField.Ignore),
 
-    // eerste zaaknummer van de vorm ANVS-XX-JJJJ/NNNNNNN in onderwerp of begin body
+    // eerste geldige zaaknummer van de vorm ANVS-XX-JJJJ/NNNNNNN in onderwerp of begin body;
+    // het nummer stopt bij het eerste teken dat geen letter, cijfer, - of / is
+    Toegestaan   = {"A" .. "Z", "0" .. "9", "-", "/"},
     MetZaaknr    = Table.AddColumn(
                         Opgeschoond, "Zaaknummer",
                         each let
-                            t   = Text.Upper(([Subject] ?? "") & " " & Text.Start([Body] ?? "", 3000)),
-                            pos = Text.PositionOf(t, "ANVS-")
+                            t          = Text.Upper(([Subject] ?? "") & " " & Text.Start([Body] ?? "", 3000)),
+                            posities   = Text.PositionOf(t, "ANVS-", Occurrence.All),
+                            kandidaten = List.Transform(
+                                             posities,
+                                             (p) => Text.Combine(
+                                                 List.FirstN(
+                                                     Text.ToList(Text.Middle(t, p, 30)),
+                                                     (c) => List.Contains(Toegestaan, c)))),
+                            geldig     = List.Select(kandidaten, (k) => Text.Contains(k, "/"))
                         in
-                            if pos < 0 then null
-                            else Text.Trim(
-                                Text.Split(
-                                    Text.Select(Text.Middle(t, pos, 30),
-                                        {"A".."Z", "0".."9", "-", "/", " "}),
-                                    " "){0}),
+                            List.First(geldig, null),
                         type text
                    ),
 
@@ -123,19 +167,27 @@ let
                         type text
                    ),
 
+    // trefwoorden een keer in het geheugen in plaats van per mail opnieuw
+    TrefBuffer   = Table.Buffer(Trefwoorden),
+
     MetTreffers  = Table.AddColumn(
                         Zoekveld, "Treffers",
                         each Table.SelectRows(
-                            Trefwoorden,
+                            TrefBuffer,
                             (t) => Text.Contains([Zoektekst], t[Trefwoord])
                         ),
                         type table
                    ),
 
+    // bij gelijke prioriteit beslissen Categorie en Trefwoord, zodat de uitkomst vastligt
     MetBeste     = Table.AddColumn(
                         MetTreffers, "Beste",
                         each if Table.RowCount([Treffers]) = 0 then null
-                             else Table.Sort([Treffers], {{"Prioriteit", Order.Ascending}}){0},
+                             else Table.Sort(
+                                 [Treffers],
+                                 {{"Prioriteit", Order.Ascending},
+                                  {"Categorie", Order.Ascending},
+                                  {"Trefwoord", Order.Ascending}}){0},
                         type record
                    ),
 

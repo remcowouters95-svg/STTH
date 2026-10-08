@@ -1,7 +1,8 @@
 // Query: Doorlooptijd
-// Koppelt inkomende mail aan het eerste uitgaande antwoord in hetzelfde gesprek (ConversationTopic).
-// Meet reactietijd per gesprek in kalenderuren, niet per zaak en niet in werkdagen.
-// Afhankelijk van: Mail
+// Koppelt elke inkomende mail aan het eerste uitgaande antwoord daarna in hetzelfde gesprek
+// (ConversationTopic). Meet reactietijd per gesprek, niet per zaak.
+// Twee maten naast elkaar: kalenderuren (K6, K7, K8) en werkdagen (K6w, K7w, K8w).
+// Afhankelijk van: Mail, Werkdagen
 let
     // ---- instellingen ----
     // einde meetperiode; gelijk houden aan Einddatum in Mail zodat K8 reproduceerbaar is
@@ -11,11 +12,18 @@ let
     Bron        = Mail,
 
     Inkomend    = Table.SelectRows(Bron, each [Richting] = "Inkomend"),
-    Uitgaand    = Table.SelectRows(Bron, each [Richting] = "Uitgaand"),
+    // zonder gespreksonderwerp is er geen koppeling; anders zouden alle lege onderwerpen aan elkaar hangen
+    Uitgaand    = Table.SelectRows(
+                      Bron,
+                      each [Richting] = "Uitgaand"
+                       and [DateTimeSent] <> null
+                       and [ConversationTopic] <> null
+                       and [ConversationTopic] <> ""
+                  ),
 
     AntwoordPer = Table.Group(
                       Uitgaand, {"ConversationTopic"},
-                      {{"EersteAntwoord", each List.Min([DateTimeSent]), type datetime}}
+                      {{"Antwoorden", each List.Sort([DateTimeSent]), type list}}
                   ),
 
     Gekoppeld   = Table.NestedJoin(
@@ -24,21 +32,23 @@ let
                       "A", JoinKind.LeftOuter
                   ),
     Uitgeklapt  = Table.ExpandTableColumn(
-                      Gekoppeld, "A", {"EersteAntwoord"}, {"EersteAntwoord"}
+                      Gekoppeld, "A", {"Antwoorden"}, {"Antwoorden"}
                   ),
 
-    // alleen antwoorden na binnenkomst en voor de peildatum tellen
+    // eerste antwoord na binnenkomst van deze mail en uiterlijk op de peildatum;
+    // een tweede vraag in hetzelfde gesprek krijgt zo zijn eigen antwoord
     Geldig      = Table.AddColumn(
                       Uitgeklapt, "AntwoordDatum",
-                      each if [EersteAntwoord] <> null
-                              and [EersteAntwoord] > [DateTimeReceived]
-                              and [EersteAntwoord] <= Peildatum
-                           then [EersteAntwoord] else null,
+                      each List.Min(
+                          List.Select(
+                              [Antwoorden] ?? {},
+                              (a) => a > [DateTimeReceived] and a <= Peildatum)),
                       type datetime
                   ),
+    ZonderLijst = Table.RemoveColumns(Geldig, {"Antwoorden"}),
 
     MetUren     = Table.AddColumn(
-                      Geldig, "DoorlooptijdUren",
+                      ZonderLijst, "DoorlooptijdUren",
                       each if [AntwoordDatum] = null then null
                            else Duration.TotalHours([AntwoordDatum] - [DateTimeReceived]),
                       type number
@@ -56,6 +66,43 @@ let
                            then Duration.TotalDays(Peildatum - [DateTimeReceived])
                            else null,
                       type number
+                  ),
+
+    // ---- werkdagen ----
+    // Een werkdag telt volledig mee (24 uur); alleen tijd in weekenden en op feestdagen valt weg.
+    // Voorbeeld: vrijdag 16.00 binnen, maandag 10.00 beantwoord is 0,75 werkdag.
+    Feestdagen  = List.Buffer(Table.SelectRows(Werkdagen, each [Feestdag] <> null)[Datum]),
+    IsVrij      = (d as date) as logical =>
+                      Date.DayOfWeek(d, Day.Monday) >= 5 or List.Contains(Feestdagen, d),
+    Werkdagtijd = (van as datetime, tot as datetime) as number =>
+                      if tot <= van then 0
+                      else
+                          let
+                              dagen = List.Dates(
+                                          Date.From(van),
+                                          Duration.Days(Date.From(tot) - Date.From(van)) + 1,
+                                          #duration(1, 0, 0, 0)),
+                              uren  = List.Transform(
+                                          List.Select(dagen, (d) => not IsVrij(d)),
+                                          (d) => Duration.TotalHours(
+                                              List.Min({tot, Date.AddDays(d, 1) & #time(0, 0, 0)})
+                                              - List.Max({van, d & #time(0, 0, 0)})))
+                          in
+                              (List.Sum(uren) ?? 0) / 24,
+
+    MetWerkdagen = Table.AddColumn(
+                      MetLeeftijd, "DoorlooptijdWerkdagen",
+                      each if [AntwoordDatum] = null then null
+                           else Werkdagtijd([DateTimeReceived], [AntwoordDatum]),
+                      type number
+                  ),
+
+    MetLeeftijdW = Table.AddColumn(
+                      MetWerkdagen, "LeeftijdWerkdagen",
+                      each if [Status] = "Open"
+                           then Werkdagtijd([DateTimeReceived], Peildatum)
+                           else null,
+                      type number
                   )
 in
-    MetLeeftijd
+    MetLeeftijdW

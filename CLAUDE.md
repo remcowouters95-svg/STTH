@@ -33,6 +33,8 @@ Doel: administratieve last verlagen en zichtbaar maken waar tijd verdwijnt.
   toetsmomenten en stappenplan. Dit is de bron van waarheid voor definities.
 * `knelpuntanalyse/powerquery/` een `.pq` bestand per Power BI query. De bestandsnaam is de
   querynaam in Power BI.
+* `knelpuntanalyse/HANDLEIDING.md` stappen voor collega's om het rapport in Power BI Desktop op
+  te bouwen.
 * `knelpuntanalyse/dax/metingen.dax` alle DAX metingen voor de meetlog.
 * `knelpuntanalyse/meetlog/` lege sjablonen voor meetlog en tijdsmeting (alleen
   geaggregeerde getallen, nooit ruwe data).
@@ -43,16 +45,22 @@ Doel: administratieve last verlagen en zichtbaar maken waar tijd verdwijnt.
 * Wijzig je de definitie van een indicator, verhoog dan de versie in `PLAN.md` en in
   `meetlog/meetlog.csv`, en noteer het in de wijzigingslog onderaan `PLAN.md`.
 * Power BI leest alleen. Schrijf geen code die mail verstuurt, verplaatst of verwijdert.
-* Afhankelijkheden tussen queries: `Trefwoorden` en `Streeftermijnen` hebben geen bron;
-  `Mail` gebruikt `Trefwoorden`; `Doorlooptijd`, `MailPerZaak` en `UrenPerDag` gebruiken
-  `Mail`; `KIM` gebruikt `Streeftermijnen`.
+* Afhankelijkheden tussen queries: `Trefwoorden`, `Streeftermijnen` en `Werkdagen` hebben geen
+  bron; `Mail` gebruikt `Trefwoorden`; `Doorlooptijd`, `MailPerZaak` en `UrenPerDag` gebruiken
+  `Mail`; `Doorlooptijd` en `UrenPerDag` gebruiken ook `Werkdagen`; `KIM` gebruikt
+  `Streeftermijnen`.
+* Houd `knelpuntanalyse/HANDLEIDING.md` bij als je een query toevoegt of een instelling wijzigt.
 
 ## Volgende taken voor Claude Code
 
-Zie de open punten in het stappenplan van `knelpuntanalyse/PLAN.md`. Goede eerste taken:
+Zie de open punten in het stappenplan van `knelpuntanalyse/PLAN.md`.
 
-1. Een review van alle `.pq` bestanden op syntax en consistentie van kolomnamen.
-2. Een werkdagenversie van de doorlooptijd (datumtabel met feestdagen), als optie naast
-   de huidige kalendertijd.
-3. Een korte handleiding `knelpuntanalyse/HANDLEIDING.md` voor collega's: in welke volgorde
-   de queries in Power BI Desktop worden aangemaakt.
+Afgerond op 8 oktober 2026: review van alle `.pq` bestanden, werkdagenversie van de
+doorlooptijd (`Werkdagen`, K6w tot en met K8w) en `HANDLEIDING.md`.
+
+Mogelijke volgende taken:
+
+1. Zodra de echte KIM export er is: kolomnamen in `KIM.pq` en zaaktypen in
+   `Streeftermijnen.pq` aanpassen.
+2. Een Python notebook voor de ODC Noord VM dat de meetlog vergelijkt met de bandbreedte van
+   de nulmeting.

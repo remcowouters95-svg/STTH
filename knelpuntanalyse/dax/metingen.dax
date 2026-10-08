@@ -1,5 +1,5 @@
 // DAX metingen voor de meetlog (versie v1)
-// Tabellen: Mail, Doorlooptijd, MailPerZaak, KIM, UrenPerDag
+// Tabellen: Mail, Doorlooptijd, MailPerZaak, KIM, UrenPerDag (Werkdagen alleen via de queries)
 // K10 komt uit de handmatige tijdsmeting en staat niet in DAX.
 
 // ---- op tabel Doorlooptijd ----
@@ -27,6 +27,29 @@ CALCULATE(
     'Doorlooptijd'[LeeftijdDagen] > 7
 )
 
+// ---- op tabel Doorlooptijd, optioneel in werkdagen (zonder weekenden en feestdagen) ----
+
+K6w Mediane doorlooptijd (werkdagen) = MEDIAN('Doorlooptijd'[DoorlooptijdWerkdagen])
+
+K7w Binnen 5 werkdagen =
+VAR Beantwoord =
+    CALCULATE(COUNTROWS('Doorlooptijd'), 'Doorlooptijd'[Status] = "Beantwoord")
+VAR OpTijd =
+    CALCULATE(
+        COUNTROWS('Doorlooptijd'),
+        'Doorlooptijd'[Status] = "Beantwoord",
+        'Doorlooptijd'[DoorlooptijdWerkdagen] <= 5
+    )
+RETURN
+    DIVIDE(OpTijd, Beantwoord)
+
+K8w Open ouder dan 5 werkdagen =
+CALCULATE(
+    COUNTROWS('Doorlooptijd'),
+    'Doorlooptijd'[Status] = "Open",
+    'Doorlooptijd'[LeeftijdWerkdagen] > 5
+)
+
 // ---- op tabel Mail ----
 
 K2 Aandeel standaardmail =
@@ -35,9 +58,10 @@ DIVIDE(
     CALCULATE(COUNTROWS(Mail), Mail[Richting] = "Inkomend")
 )
 
+// Onbekend is een restcategorie en telt niet mee als herhaling
 K3 Hoogste herhaalfactor =
 MAXX(
-    VALUES(Mail[Categorie]),
+    FILTER(VALUES(Mail[Categorie]), Mail[Categorie] <> "Onbekend"),
     DIVIDE(
         CALCULATE(COUNTROWS(Mail)),
         CALCULATE(DISTINCTCOUNT(Mail[OnderwerpSchoon]))

@@ -15,8 +15,10 @@ let
                        {"AantalInkomend",
                         each List.Count(List.Select([Richting], each _ = "Inkomend")),
                         Int64.Type},
+                       // alleen inkomende statusvragen, net als K4
                        {"AantalStatusvragen",
-                        each List.Count(List.Select([Categorie], each _ = "Statusvraag")),
+                        each Table.RowCount(Table.SelectRows(_,
+                            (r) => r[Richting] = "Inkomend" and r[Categorie] = "Statusvraag")),
                         Int64.Type},
                        {"LangsteStilteDagen",
                         each let d = List.Sort(List.RemoveNulls([Tijdstip]))

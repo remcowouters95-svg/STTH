@@ -49,6 +49,13 @@ vastgesteld.
 K12 (aandeel Onbekend) is een kwaliteitscontrole: ligt die boven 20%, dan zijn K2 en K4
 onbetrouwbaar en wordt eerst de trefwoordtabel aangevuld.
 
+**Werkdagvarianten (optioneel).** Naast K6, K7 en K8 in kalendertijd zijn er K6w, K7w en K8w in
+werkdagen. Tijd in weekenden en op feestdagen van de rijksoverheid (query `Werkdagen`) telt
+daarbij niet mee; een werkdag telt volledig. Een mail die vrijdag om 16.00 binnenkomt en maandag om
+10.00 is beantwoord, heeft een doorlooptijd van 0,75 werkdag (in kalendertijd 66 uur). Voorstel
+voor de drempels: K7w telt binnen 5 werkdagen, K8w telt open mails ouder dan 5 werkdagen. De
+kalendervarianten blijven de hoofdindicatoren voor H3 en H4 tot de leidinggevende anders besluit.
+
 ## Meetlog
 
 De meetwaarden staan in `meetlog/meetlog.csv`. Vergelijk alleen indicatoren met hetzelfde
@@ -67,15 +74,16 @@ collega dezelfde tabel bij. Herhaal na elke maatregel exact dezelfde meting.
 | --- | --- | --- |
 | `powerquery/Trefwoorden.pq` | Trefwoorden | geen |
 | `powerquery/Streeftermijnen.pq` | Streeftermijnen | geen |
+| `powerquery/Werkdagen.pq` | Werkdagen | geen |
 | `powerquery/Mail.pq` | Mail | Trefwoorden |
-| `powerquery/Doorlooptijd.pq` | Doorlooptijd | Mail |
+| `powerquery/Doorlooptijd.pq` | Doorlooptijd | Mail, Werkdagen |
 | `powerquery/MailPerZaak.pq` | MailPerZaak | Mail |
-| `powerquery/UrenPerDag.pq` | UrenPerDag | Mail |
+| `powerquery/UrenPerDag.pq` | UrenPerDag | Mail, Werkdagen |
 | `powerquery/KIM.pq` | KIM | Streeftermijnen |
-| `dax/metingen.dax` | metingen K1 t/m K12 behalve K10 | alle tabellen |
+| `dax/metingen.dax` | metingen K1 t/m K12 behalve K10, plus K6w, K7w, K8w | alle tabellen |
 
-Maak de queries aan in de volgorde van de tabel. Relatie in het model: `MailPerZaak[Zaaknummer]`
-naar `KIM[Zaaknummer]`.
+Maak de queries aan in de volgorde van de tabel; de stappen staan in `HANDLEIDING.md`. Relatie in
+het model: `MailPerZaak[Zaaknummer]` naar `KIM[Zaaknummer]`.
 
 ## Toetsmomenten
 
@@ -111,14 +119,20 @@ maandwaarden in de nulmeting valt.
 
 ## Beperkingen en aannames
 
-1. Verwijderde of buiten de mailbox gearchiveerde mail telt niet mee.
-2. Doorlooptijd is per gesprek op ConversationTopic, niet per zaak. Telefonische afhandeling
-   telt als niet beantwoord.
-3. Alleen het eerste zaaknummer per mail wordt herkend, en alleen als het letterlijk in
-   onderwerp of begin van de body staat.
+1. Verwijderde of buiten de mailbox gearchiveerde mail telt niet mee. Mail in de map Verwijderde
+   items telt wel mee. Concepten, Postvak UIT, Ongewenste e-mail en Synchronisatieproblemen
+   tellen niet mee.
+2. Doorlooptijd is per gesprek op ConversationTopic, niet per zaak: elke inkomende mail krijgt
+   het eerste uitgaande antwoord daarna in hetzelfde gesprek. Mail zonder gespreksonderwerp telt
+   als niet beantwoord, net als telefonische afhandeling.
+3. Alleen het eerste geldige zaaknummer per mail wordt herkend (begint met `ANVS-` en bevat een
+   `/`), en alleen als het letterlijk in het onderwerp of de eerste 3000 tekens van de body staat.
 4. Kolomnamen van de KIM export, zaaktypen en streeftermijnen zijn aannames tot de echte export
-   er is. Ook de kolomnamen van de Exchange connector kunnen per versie verschillen.
-5. Doorlooptijden zijn in kalendertijd: 120 uur is vijf kalenderdagen.
+   er is. Ook de kolomnamen van de Exchange connector kunnen per versie verschillen; `Mail` haalt
+   ConversationTopic en DateTimeSent zo nodig uit de kolom Attributes.
+5. K6, K7 en K8 zijn in kalendertijd: 120 uur is vijf kalenderdagen. K6w, K7w en K8w zijn in
+   werkdagen volgens `Werkdagen` (feestdagen van de rijksoverheid, zonder Goede Vrijdag).
+   Vrije dagen van een individuele medewerker tellen in beide varianten mee als werktijd.
 6. Drempels zijn voorstellen tot vaststelling met de leidinggevende.
 
 ## Wijzigingslog
@@ -126,3 +140,4 @@ maandwaarden in de nulmeting valt.
 | Datum | Versie | Wijziging |
 | --- | --- | --- |
 | 2026-10-08 | v1 | Eerste versie. K7 telt alleen beantwoorde mails in de teller. Peildatum vervangt DateTime.LocalNow in Doorlooptijd. |
+| 2026-10-08 | v1 | Correcties na review, nog voor de nulmeting. Daarom geen nieuwe versie: er is nog niet met v1 gemeten. `Mail`: richting op de bovenste map (de oude zoektekst "sent" trof ook mappen als "Presentaties"), concepten en ongewenste mail vallen weg, vaste volgorde bij gelijke prioriteit (Prioriteit, Categorie, Trefwoord), zaaknummer stopt bij het eerste ongeldige teken, ISO weeknummer. `Doorlooptijd`: antwoord per inkomende mail in plaats van per gesprek, geen koppeling op leeg gespreksonderwerp. `KIM`: open op peildatum vereist startdatum op of voor de peildatum. K3 laat Onbekend buiten beschouwing. K11 telt alleen werkdagen. Nieuw: query `Werkdagen` en optionele indicatoren K6w, K7w en K8w. |
